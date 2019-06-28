@@ -1,24 +1,24 @@
 #-*- coding: UTF-8 -*-
 
-import sys
-import time
-import urllib
-import urllib2
 import requests
+import time
+import urllib.request
+from urllib import error
 import numpy as np
 from bs4 import BeautifulSoup
-from openpyxl import Workbook
+from openpyxl import Workbook#处理excel
+import importlib,sys
+importlib.reload(sys)
 
-reload(sys)
-sys.setdefaultencoding('utf8')
+
 
 
 
 #Some User Agents
-hds=[{'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'},\
+headers=[{'User-Agent':'Mozilla/5.0 (Windows; U; Windows NT 6.1; en-US; rv:1.9.1.6) Gecko/20091201 Firefox/3.5.6'},\
 {'User-Agent':'Mozilla/5.0 (Windows NT 6.2) AppleWebKit/535.11 (KHTML, like Gecko) Chrome/17.0.963.12 Safari/535.11'},\
-{'User-Agent': 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)'}]
-
+{'User-Agent': 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.2; Trident/6.0)'},\
+{'User-Agent':'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/63.0.3239.132 Mobile Safari/537.36'}]
 
 def book_spider(book_tag):
     page_num=0;
@@ -27,23 +27,23 @@ def book_spider(book_tag):
     
     while(1):
         #url='http://www.douban.com/tag/%E5%B0%8F%E8%AF%B4/book?start=0' # For Test
-        url='http://www.douban.com/tag/'+urllib.quote(book_tag)+'/book?start='+str(page_num*15)
+        url='http://www.douban.com/tag/'+urllib.parse.quote(book_tag)+'/book?start='+str(page_num*15)
         time.sleep(np.random.rand()*5)
-        
+        url.encoding()
         #Last Version
         try:
-            req = urllib2.Request(url, headers=hds[page_num%len(hds)])
-            source_code = urllib2.urlopen(req).read()
-            plain_text=str(source_code)   
-        except (urllib2.HTTPError, urllib2.URLError), e:
-            print e
+            req = urllib.request.urlopen(url=url)
+            #source_code = urllib.request.urlopen(req).read()
+            plain_text=str(req.read())
+        except error.URLError as e:
+            print(e)
             continue
   
         ##Previous Version, IP is easy to be Forbidden
         #source_code = requests.get(url) 
         #plain_text = source_code.text  
         
-        soup = BeautifulSoup(plain_text)
+        soup = BeautifulSoup(plain_text,'lxml')
         list_soup = soup.find('div', {'class': 'mod book-list'})
         
         try_times+=1;
@@ -80,19 +80,20 @@ def book_spider(book_tag):
             book_list.append([title,rating,people_num,author_info,pub_info])
             try_times=0 #set 0 when got valid information
         page_num+=1
-        print 'Downloading Information From Page %d' % page_num
+        print ('Downloading Information From Page %d' % page_num)
     return book_list
 
 
 def get_people_num(url):
     #url='http://book.douban.com/subject/6082808/?from=tag_all' # For Test
     try:
-        req = urllib2.Request(url, headers=hds[np.random.randint(0,len(hds))])
-        source_code = urllib2.urlopen(req).read()
-        plain_text=str(source_code)   
-    except (urllib2.HTTPError, urllib2.URLError), e:
-        print e
-    soup = BeautifulSoup(plain_text)
+        req =urllib.request.urlopen(url=url,headers=headers[np.random.randint(0,len(headers))])
+        #source_code = urllib.request.urlopen(req).read()
+        plain_text=str(req.read())
+
+    except error.URLError as e:
+        print(e)
+    soup = BeautifulSoup(plain_text,'lxml')#python3的特性
     people_num=soup.find('div',{'class':'rating_sum'}).findAll('span')[1].string.strip()
     return people_num
 
@@ -101,16 +102,16 @@ def do_spider(book_tag_lists):
     book_lists=[]
     for book_tag in book_tag_lists:
         book_list=book_spider(book_tag)
-        book_list=sorted(book_list,key=lambda x:x[1],reverse=True)
+        book_list=sorted(book_list,key=lambda x:x[1],reverse=True)#对book_list进行排序，这里的x随意写
         book_lists.append(book_list)
     return book_lists
 
 
 def print_book_lists_excel(book_lists,book_tag_lists):
-    wb=Workbook(optimized_write=True)
+    wb=Workbook(write_only = True)#python3的特性
     ws=[]
     for i in range(len(book_tag_lists)):
-        ws.append(wb.create_sheet(title=book_tag_lists[i].decode())) #utf8->unicode
+        ws.append(wb.create_sheet(title=book_tag_lists[i])) #utf8->unicode
     for i in range(len(book_tag_lists)): 
         ws[i].append(['序号','书名','评分','评价人数','作者','出版社'])
         count=1
@@ -119,7 +120,7 @@ def print_book_lists_excel(book_lists,book_tag_lists):
             count+=1
     save_path='book_list'
     for i in range(len(book_tag_lists)):
-        save_path+=('-'+book_tag_lists[i].decode())
+        save_path+=('-'+book_tag_lists[i])
     save_path+='.xlsx'
     wb.save(save_path)
 
@@ -140,4 +141,4 @@ if __name__=='__main__':
     book_tag_lists = ['个人管理','时间管理','投资','文化','宗教']
     book_lists=do_spider(book_tag_lists)
     print_book_lists_excel(book_lists,book_tag_lists)
-    
+
